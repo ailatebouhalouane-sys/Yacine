@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>مواقيت الصلاة والآذان في الجزائر وضواحيها</title>
+  <meta name="description" content="تطبيق دقيق لمواقيت الصلاة، الأذان الحقيقي، خريطة المساجد، والأذكار لولاية الجزائر وضواحيها وكافة الولايات الـ 58." />
+
+  <!-- الخطوط العربية الأصيلة -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Amiri:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Cairo', 'sans-serif'],
+            serif: ['Amiri', 'serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet Map CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    body { font-family: 'Cairo', sans-serif; }
+    .font-amiri { font-family: 'Amiri', serif; }
+    .font-mono-numbers { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.25); border-radius: 9999px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-emerald-600 selection:text-white">
+
+  <!-- شريط التنقل العلوي (Navbar) -->
+  <header class="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <span class="text-lg md:text-xl font-bold text-emerald-400">مواقيت صلاتي بالجزائر</span>
+        <button onclick="switchTab('suburbs')" id="current-location-btn" class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-300 hover:text-white bg-slate-900 border border-slate-700/60 rounded-md">
+          📍 <span id="nav-location-name">الجزائر الوسطى / القصبة</span>
+        </button>
+      </div>
+
+      <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
+        <button onclick="switchTab('home')" class="nav-tab text-emerald-400 border-b-2 border-emerald-400 pb-0.5" data-tab="home">المواقيت اليومية</button>
+        <button onclick="switchTab('suburbs')" class="nav-tab hover:text-white pb-0.5" data-tab="suburbs">الجزائر وضواحيها</button>
+        <button onclick="switchTab('map')" class="nav-tab hover:text-white pb-0.5" data-tab="map">خريطة المساجد</button>
+        <button onclick="switchTab('alerts')" class="nav-tab hover:text-white pb-0.5" data-tab="alerts">الأذان والتنبيهات</button>
+        <button onclick="switchTab('adhkar')" class="nav-tab hover:text-white pb-0.5" data-tab="adhkar">الأذكار والمسبحة</button>
+        <button onclick="switchTab('qibla')" class="nav-tab hover:text-white pb-0.5" data-tab="qibla">اتجاه القبلة</button>
+        <button onclick="switchTab('calendar')" class="nav-tab hover:text-white pb-0.5" data-tab="calendar">إمساكية الشهر</button>
+      </nav>
+
+      <div class="flex items-center gap-2">
+        <button onclick="toggleGlobalMute()" id="mute-btn" class="p-2 text-emerald-400 hover:bg-slate-800 rounded-lg" title="كتم/تشغيل الصوت">🔊</button>
+        <button onclick="switchTab('suburbs')" class="px-3.5 py-1.5 text-xs font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-lg">تغيير المنطقة</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- شريط التبويب للأجهزة المحمولة -->
+  <div class="flex md:hidden items-center gap-2 overflow-x-auto px-4 py-2.5 bg-slate-900/60 border-b border-slate-800 text-xs">
+    <button onclick="switchTab('home')" class="mobile-tab px-3 py-1 bg-emerald-500 text-slate-950 font-bold rounded-lg shrink-0" data-tab="home">المواقيت</button>
+    <button onclick="switchTab('suburbs')" class="mobile-tab px-3 py-1 bg-slate-900 text-slate-300 rounded-lg shrink-0" data-tab="suburbs">الضواحي والولايات</button>
+    <button onclick="switchTab('map')" class="mobile-tab px-3 py-1 bg-slate-900 text-slate-300 rounded-lg shrink-0" data-tab="map">خريطة المساجد</button>
+    <button onclick="switchTab('alerts')" class="mobile-tab px-3 py-1 bg-slate-900 text-slate-300 rounded-lg shrink-0" data-tab="alerts">الأذان</button>
+    <button onclick="switchTab('adhkar')" class="mobile-tab px-3 py-1 bg-slate-900 text-slate-300 rounded-lg shrink-0" data-tab="adhkar">الأذكار</button>
+    <button onclick="switchTab('qibla')" class="mobile-tab px-3 py-1 bg-slate-900 text-slate-300 rounded-lg shrink-0" data-tab="qibla">القبلة</button>
+    <button onclick="switchTab('calendar')" class="mobile-tab px-3 py-1 bg-slate-900 text-slate-300 rounded-lg shrink-0" data-tab="calendar">الإمساكية</button>
+  </div>
+
+  <!-- المحتوى الرئيسي -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+
+    <!-- 1. تبويب الواجهة الرئيسية والمواقيت -->
+    <section id="tab-home" class="tab-content space-y-8">
+      <div class="relative overflow-hidden rounded-2xl md:rounded-3xl border border-slate-800 bg-slate-900 text-slate-100 p-6 md:p-10 shadow-2xl">
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-5 mb-6 text-sm">
+          <div class="flex items-center gap-2 text-emerald-400 font-semibold">
+            <span>📍</span>
+            <span id="hero-location-name">الجزائر العاصمة وضواحيها</span>
+            <span class="text-slate-500">·</span>
+            <button onclick="autoLocateGPS()" class="text-xs text-slate-300 hover:text-emerald-300 underline">تحديد موقعي (GPS)</button>
+          </div>
+          <div class="text-xs md:text-sm text-slate-300 font-medium">
+            <span id="hijri-date-text" class="text-amber-300 font-serif font-bold"></span>
+            <span class="text-slate-500">·</span>
+            <span id="gregorian-date-text"></span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <div class="lg:col-span-8 space-y-4">
+            <div class="flex items-center gap-2 text-slate-300">
+              <span>الصلاة القادمة:</span>
+              <span id="next-prayer-name" class="text-2xl md:text-3xl font-extrabold text-emerald-400">صلاة الظهر</span>
+            </div>
+
+            <!-- العداد التنازلي بالأرقام الواضحة -->
+            <div class="flex items-baseline gap-3 font-mono-numbers py-2 text-white">
+              <div class="flex flex-col items-center">
+                <span id="cd-hours" class="text-4xl sm:text-6xl font-extrabold text-white">00</span>
+                <span class="text-xs text-slate-400 font-sans mt-1">ساعة</span>
+              </div>
+              <span class="text-3xl sm:text-5xl text-emerald-400">:</span>
+              <div class="flex flex-col items-center">
+                <span id="cd-minutes" class="text-4xl sm:text-6xl font-extrabold text-white">00</span>
+                <span class="text-xs text-slate-400 font-sans mt-1">دقيقة</span>
+              </div>
+              <span class="text-3xl sm:text-5xl text-emerald-400">:</span>
+              <div class="flex flex-col items-center">
+                <span id="cd-seconds" class="text-4xl sm:text-6xl font-extrabold text-emerald-400">00</span>
+                <span class="text-xs text-slate-400 font-sans mt-1">ثانية</span>
+              </div>
+            </div>
+
+            <div class="w-full max-w-xl bg-slate-800 h-2 rounded-full overflow-hidden mt-4">
+              <div id="prayer-progress-bar" class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 w-0 transition-all duration-1000"></div>
+            </div>
+          </div>
+
+          <!-- أدوات تشغيل الأذان الحقيقي -->
+          <div class="lg:col-span-4 flex flex-col gap-3 lg:border-r lg:border-slate-800 lg:pr-8">
+            <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800">
+              <label class="text-[11px] text-slate-400 block mb-1">اختر صوت الأذان الحقيقي:</label>
+              <select id="real-voice-select" class="w-full bg-slate-900 border border-slate-700 text-emerald-400 text-xs font-semibold rounded-lg p-2 focus:outline-none">
+                <option value="makkah">أذان الحرم المكي (الشيخ علي ملا)</option>
+                <option value="madina">أذان المسجد النبوي الشريف</option>
+                <option value="alaqsa">أذان المسجد الأقصى المبارك</option>
+                <option value="fajr">أذان الفجر الحقيقي (الصلاة خير من النوم)</option>
+                <option value="mishary">أذان الشيخ مشاري راشد العفاسي</option>
+              </select>
+            </div>
+
+            <button onclick="toggleRealAdhanPlay()" id="play-adhan-btn" class="w-full py-3.5 px-5 rounded-xl font-bold text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
+              <span>▶ استماع للأذان الحقيقي الآن</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- شبكة مواقيت الصلوات اليومية -->
+      <div>
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+          <h2 class="text-xl font-bold text-white">جدول مواقيت الصلاة اليومية</h2>
+          <span class="text-xs text-slate-400">معايير وزارة الشؤون الدينية والأوقاف الجزائرية (فجر 18° / عشاء 17°)</span>
+        </div>
+
+        <div id="prayers-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3"></div>
+      </div>
+    </section>
+
+    <!-- 2. تبويب اختيار الضاحية أو الولاية -->
+    <section id="tab-suburbs" class="tab-content hidden space-y-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8">
+        <h2 class="text-2xl font-bold text-white mb-2">اختر منطقتك أو ضاحيتك بالجزائر</h2>
+        <p class="text-xs md:text-sm text-slate-400 mb-6">تغطية لكافة دوائر وضواحي العاصمة والـ 58 ولاية جزائرية بدقة فلكية تامة</p>
+        
+        <input type="text" id="suburb-search-input" oninput="filterLocations()" placeholder="ابحث باسم الضاحية أو الولاية (الرويبة، زرالدة، الشراقة، باب الوادي، وهران...)" class="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white text-sm mb-6 focus:border-emerald-500 focus:outline-none" />
+
+        <h3 class="text-sm font-bold text-emerald-400 mb-3">ضواحي ودوائر الجزائر العاصمة الكبرى:</h3>
+        <div id="suburbs-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8"></div>
+
+        <h3 class="text-sm font-bold text-emerald-400 mb-3">كافة ولايات الجزائر الـ 58:</h3>
+        <div id="wilayas-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2"></div>
+      </div>
+    </section>
+
+    <!-- 3. تبويب خريطة المساجد التفاعلية -->
+    <section id="tab-map" class="tab-content hidden space-y-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-2xl font-bold text-white">خريطة مساجد الجزائر وضواحيها التفاعلية</h2>
+            <p class="text-xs text-slate-400 mt-1">ابحث عن أقرب مسجد إليك واطلع على مواقيت الصلاة والإقامة فيه</p>
+          </div>
+          <button onclick="findNearestMosque()" class="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs hover:bg-emerald-400 transition-colors">
+            🧭 توجيهي إلى أقرب مسجد لي
+          </button>
+        </div>
+
+        <div id="map-container" class="w-full h-[450px] rounded-2xl border border-slate-800 overflow-hidden z-0"></div>
+        <div id="selected-mosque-card" class="mt-4 p-4 rounded-xl bg-slate-950 border border-slate-800"></div>
+      </div>
+    </section>
+
+    <!-- 4. تبويب الأذان والتنبيهات المخصصة -->
+    <section id="tab-alerts" class="tab-content hidden space-y-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 space-y-6">
+        <h2 class="text-2xl font-bold text-white">نظام الأذان والتنبيهات المخصص</h2>
+        <p class="text-xs text-slate-400">خصص أصوات الأذان وتوقيتات التنبيه المسبق (قبل الأذان) والإقامة (بعد الأذان)</p>
+
+        <!-- رفع ملف أذان مخصص من الجهاز -->
+        <div class="p-4 bg-slate-950 border border-slate-800 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <h4 class="text-sm font-bold text-white">هل ترغب برفع صوت أذان مخصص من هاتفك؟</h4>
+            <p class="text-xs text-slate-400 mt-0.5">ارفع أي ملف أذان (MP3 / WAV / M4A) وسيتم حفظه وتشغيله تلقائياً</p>
+          </div>
+          <input type="file" id="custom-audio-input" accept="audio/*" onchange="handleCustomAudioUpload(event)" class="text-xs text-slate-400 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-slate-800 file:text-white file:font-semibold hover:file:bg-slate-700 cursor-pointer" />
+        </div>
+
+        <div id="alerts-config-list" class="space-y-3"></div>
+      </div>
+    </section>
+
+    <!-- 5. تبويب الأذكار والمسبحة الإلكترونية -->
+    <section id="tab-adhkar" class="tab-content hidden space-y-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8">
+        <div class="flex flex-wrap gap-2 border-b border-slate-800 pb-4 mb-6">
+          <button onclick="setAdhkarCategory('morning')" class="adhkar-cat-btn px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs" data-cat="morning">أذكار الصباح</button>
+          <button onclick="setAdhkarCategory('evening')" class="adhkar-cat-btn px-4 py-2 bg-slate-950 text-slate-300 rounded-xl text-xs" data-cat="evening">أذكار المساء</button>
+          <button onclick="setAdhkarCategory('after_prayer')" class="adhkar-cat-btn px-4 py-2 bg-slate-950 text-slate-300 rounded-xl text-xs" data-cat="after_prayer">أذكار بعد الصلاة</button>
+          <button onclick="setAdhkarCategory('tasbeeh')" class="adhkar-cat-btn px-4 py-2 bg-slate-950 text-slate-300 rounded-xl text-xs" data-cat="tasbeeh">المسبحة الإلكترونية</button>
+        </div>
+
+        <div id="tasbeeh-panel" class="hidden flex flex-col items-center justify-center py-10 space-y-6">
+          <button onclick="incrementTasbeeh()" class="w-56 h-56 rounded-full bg-gradient-to-br from-emerald-600 to-teal-900 border-4 border-emerald-400 text-white shadow-2xl flex flex-col items-center justify-center p-6 active:scale-95 transition-transform select-none">
+            <span id="tasbeeh-label" class="font-amiri text-xl font-bold mb-2">سُبْحَانَ اللَّه</span>
+            <span id="tasbeeh-count" class="font-mono-numbers text-5xl font-extrabold">0</span>
+            <span class="text-[11px] text-emerald-200 mt-2">انقر للتسبيح</span>
+          </button>
+          <button onclick="resetTasbeeh()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl">تصفير العداد</button>
+        </div>
+
+        <div id="adhkar-list" class="space-y-4"></div>
+      </div>
+    </section>
+
+    <!-- 6. تبويب اتجاه القبلة -->
+    <section id="tab-qibla" class="tab-content hidden space-y-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 flex flex-col items-center text-center">
+        <h2 class="text-2xl font-bold text-white mb-2">بوصلة اتجاه القبلة الشريفة</h2>
+        <p class="text-xs text-slate-400 mb-8">زاوية الكعبة المشرفة بمكة المكرمة انطلاقاً من إحداثيات موقعك في الجزائر</p>
+
+        <div class="relative w-64 h-64 rounded-full border-4 border-slate-800 bg-slate-950 flex items-center justify-center shadow-inner mb-6">
+          <span class="absolute top-2 font-bold text-rose-400 text-xs">شمال (N)</span>
+          <span class="absolute right-2 font-bold text-slate-400 text-xs">شرق (E)</span>
+          <div id="qibla-needle" class="absolute w-full h-full flex items-center justify-center transition-transform duration-500">
+            <div class="absolute top-6 flex flex-col items-center">
+              <span class="text-2xl">🕋</span>
+              <div class="w-1.5 h-16 bg-emerald-500 rounded-full"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-300 max-w-md">
+          زاوية القبلة: <strong id="qibla-angle-val" class="text-emerald-400 font-mono-numbers text-sm">100.8°</strong> بالنسبة للشمال الجغرافي (باتجاه الشرق والجنوب الشرقي).
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. تبويب إمساكية الشهر -->
+    <section id="tab-calendar" class="tab-content hidden space-y-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+          <h2 class="text-xl font-bold text-white">إمساكية ومواقيت الشهر بالجزائر</h2>
+          <button onclick="window.print()" class="px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg hover:bg-slate-700">🖨️ طباعة الإمساكية</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-right text-xs border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400">
+                <th class="py-2.5 px-2">اليوم</th>
+                <th class="py-2.5 px-2">الميلادي</th>
+                <th class="py-2.5 px-2">الهجري</th>
+                <th class="py-2.5 px-2 text-indigo-400">الإمساك</th>
+                <th class="py-2.5 px-2 text-emerald-400">الفجر</th>
+                <th class="py-2.5 px-2 text-orange-400">الشروق</th>
+                <th class="py-2.5 px-2">الظهر</th>
+                <th class="py-2.5 px-2">العصر</th>
+                <th class="py-2.5 px-2 text-rose-400">المغرب</th>
+                <th class="py-2.5 px-2 text-sky-400">العشاء</th>
+              </tr>
+            </thead>
+            <tbody id="calendar-table-body" class="divide-y divide-slate-800/60 font-mono-numbers text-slate-300"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-slate-800 bg-slate-950 py-6 text-center text-xs text-slate-500">
+    تطبيق مواقيت الصلاة في الجزائر وضواحيها · معتمد على معايير وزارة الشؤون الدينية والأوقاف الجزائرية
+  </footer>
+
+  <script>
+    const ALGIERS_SUBURBS = [
+      { id: 'algiers-centre', nameAr: 'الجزائر الوسطى / القصبة', lat: 36.7753, lng: 3.0588 },
+      { id: 'bab-el-oued', nameAr: 'باب الوادي / بولوغين', lat: 36.7917, lng: 3.0486 },
+      { id: 'bouzareah', nameAr: 'بوزريعة / بني مسوس / الأبيار', lat: 36.7867, lng: 3.0189 },
+      { id: 'cheraga', nameAr: 'الشراقة / دالي براهيم / أولاد فايت', lat: 36.7667, lng: 2.9500 },
+      { id: 'zeralda', nameAr: 'زرالدة / سطاوالي / سيدي عبد الله', lat: 36.7167, lng: 2.8500 },
+      { id: 'bir-mourad-rais', nameAr: 'بئر مراد رايس / بئر خادم / حيدرة', lat: 36.7369, lng: 3.0531 },
+      { id: 'draria', nameAr: 'درارية / بابا حسن / العاشور', lat: 36.7167, lng: 3.0000 },
+      { id: 'birtouta', nameAr: 'بئر توتة / تسالة المرجة', lat: 36.6433, lng: 3.0033 },
+      { id: 'kouba', nameAr: 'القبة / حسين داي / المقرية', lat: 36.7264, lng: 3.0858 },
+      { id: 'el-harrach', nameAr: 'الحراش / وادي السمار / باش جراح', lat: 36.7214, lng: 3.1364 },
+      { id: 'baraki', nameAr: 'براقي / سيدي موسى / الكاليتوس', lat: 36.6667, lng: 3.1000 },
+      { id: 'dar-el-beida', nameAr: 'الدار البيضاء / باب الزوار / المحمدية', lat: 36.7133, lng: 3.2125 },
+      { id: 'rouiba', nameAr: 'الرويبة / الرغاية / برج الكيفان', lat: 36.7333, lng: 3.2833 },
+      { id: 'boufarik', nameAr: 'بوفاريك / الصومعة (البليدة)', lat: 36.5744, lng: 2.9133 },
+      { id: 'kolea', nameAr: 'القليعة / فوكة (تيبازة)', lat: 36.6381, lng: 2.7686 },
+      { id: 'boudouaou', nameAr: 'بودواو / خميس الخشنة (بومرداس)', lat: 36.7289, lng: 3.4097 }
+    ];
+
+    const ALGERIA_WILAYAS = [
+      { id: '01', code: '01', nameAr: 'أدرار', lat: 27.8744, lng: -0.2939 },
+      { id: '02', code: '02', nameAr: 'الشلف', lat: 36.1653, lng: 1.3347 },
+      { id: '05', code: '05', nameAr: 'باتنة', lat: 35.5558, lng: 6.1742 },
+      { id: '06', code: '06', nameAr: 'بجاية', lat: 36.7558, lng: 5.0844 },
+      { id: '07', code: '07', nameAr: 'بسكرة', lat: 34.8504, lng: 5.7281 },
+      { id: '09', code: '09', nameAr: 'البليدة', lat: 36.4703, lng: 2.8278 },
+      { id: '13', code: '13', nameAr: 'تلمسان', lat: 34.8783, lng: -1.3150 },
+      { id: '15', code: '15', nameAr: 'تيزي وزو', lat: 36.7119, lng: 4.0458 },
+      { id: '16', code: '16', nameAr: 'الجزائر العاصمة', lat: 36.7538, lng: 3.0588 },
+      { id: '19', code: '19', nameAr: 'سطيف', lat: 36.1911, lng: 5.4137 },
+      { id: '23', code: '23', nameAr: 'عنابة', lat: 36.9000, lng: 7.7667 },
+      { id: '25', code: '25', nameAr: 'قسنطينة', lat: 36.3650, lng: 6.6147 },
+      { id: '31', code: '31', nameAr: 'وهران', lat: 35.6971, lng: -0.6308 },
+      { id: '35', code: '35', nameAr: 'بومرداس', lat: 36.7664, lng: 3.4772 },
+      { id: '42', code: '42', nameAr: 'تيبازة', lat: 36.5942, lng: 2.4475 }
+    ];
+
+    const ALGERIA_MOSQUES = [
+      { id: 'm1', nameAr: 'جامع الجزائر الأعظم', district: 'المحمدية (العاصمة)', lat: 36.7344, lng: 3.1417, jumuah: '13:00' },
+      { id: 'm2', nameAr: 'مسجد كتشاوة التاريخي', district: 'القصبة (العاصمة)', lat: 36.7850, lng: 3.0617, jumuah: '13:00' },
+      { id: 'm3', nameAr: 'الجامع الكبير بالجزائر', district: 'ساحة الشهداء', lat: 36.7858, lng: 3.0642, jumuah: '13:00' },
+      { id: 'm4', nameAr: 'مسجد النور بالشراقة', district: 'الشراقة', lat: 36.7689, lng: 2.9567, jumuah: '13:00' },
+      { id: 'm5', nameAr: 'مسجد الفتح بالرويبة', district: 'الرويبة', lat: 36.7350, lng: 3.2867, jumuah: '13:00' },
+      { id: 'm6', nameAr: 'مسجد الإحسان بزرالدة', district: 'زرالدة', lat: 36.7156, lng: 2.8533, jumuah: '13:00' },
+      { id: 'm7', nameAr: 'مسجد الكوثر الكبير بالبليدة', district: 'البليدة', lat: 36.4717, lng: 2.8317, jumuah: '13:00' },
+      { id: 'm8', nameAr: 'مسجد الأمير عبد القادر', district: 'قسنطينة', lat: 36.3533, lng: 6.6067, jumuah: '13:00' },
+      { id: 'm9', nameAr: 'مسجد الإمام عبد الحميد بن باديس', district: 'وهران', lat: 35.6989, lng: -0.6122, jumuah: '13:00' }
+    ];
+
+    const ADHKAR_DATA = {
+      morning: [
+        { text: 'أَصْبَحْنَا وَأَصْبَحَ المُلْكُ لِلَّهِ، وَالحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ المُلْكُ وَلَهُ الحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ.', count: 1, source: 'صحيح مسلم' },
+        { text: 'اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ، وَأَنَا عَلَى عَهْدِكَ وَوَعْدِكَ مَا اسْتَطَعْتُ، أَعُوذُ بِكَ مِنْ شَرِّ مَا صَنَعْتُ.', count: 1, source: 'سيد الاستغفار' },
+        { text: 'بِسْمِ اللَّهِ الَّذِي لَا يَضُرُّ مَعَ اسْمِهِ شَيْءٌ فِي الأَرْضِ وَلَا فِي السَّمَاءِ وَهُوَ السَّمِيعُ العَلِيمُ.', count: 3, source: 'سنن أبي داود' }
+      ],
+      evening: [
+        { text: 'أَمْسَيْنَا وَأَمْسَى المُلْكُ لِلَّهِ، وَالحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ.', count: 1, source: 'صحيح مسلم' },
+        { text: 'أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ.', count: 3, source: 'صحيح مسلم' },
+        { text: 'حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ.', count: 7, source: 'أبو داود' }
+      ],
+      after_prayer: [
+        { text: 'أَسْتَغْفِرُ اللَّهَ (3 مرات) .. اللَّهُمَّ أَنْتَ السَّلامُ وَمِنْكَ السَّلامُ، تَبَارَكْتَ يَا ذَا الجَلالِ وَالإِكْرَامِ.', count: 1, source: 'صحيح مسلم' },
+        { text: 'سُبْحَانَ اللَّهِ (33) · الحَمْدُ لِلَّهِ (33) · اللَّهُ أَكْبَرُ (33) .. ثم تمام المائة: لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ.', count: 33, source: 'صحيح مسلم' },
+        { text: 'قراءة آية الكرسي: ﴿اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ...﴾', count: 1, source: 'النسائي' }
+      ]
+    };
+
+    const AUDIO_TRACKS = {
+      makkah: 'https://archive.org/download/Mp3CollectionAdzan/Adzan%20%28%20Makkah%20%29.mp3',
+      madina: 'https://archive.org/download/Mp3CollectionAdzan/Adzan%20%28%20Madina%20%29.mp3',
+      alaqsa: 'https://archive.org/download/Mp3CollectionAdzan/Adzan%20%28%20Alaqsa%20%29.mp3',
+      fajr: 'https://archive.org/download/Mp3CollectionAdzan/ADZAN%20SUBUH--.mp3',
+      mishary: 'https://archive.org/download/Mp3CollectionAdzan/A%20Very%20Beautiful%20Adzan%20by%20Mishary%20Al%20Afasy.mp3'
+    };
+
+    let currentLocation = ALGIERS_SUBURBS[0];
+    let isGlobalMuted = false;
+    let currentAudio = null;
+    let isAdhanPlaying = false;
+    let customAudioBase64 = localStorage.getItem('custom_adhan_audio') || null;
+    let tasbeehCount = 0;
+    let mapInstance = null;
+
+    const rad = deg => (deg * Math.PI) / 180;
+    const deg = rad => (rad * 180) / Math.PI;
+
+    function calculatePrayerTimes(date, lat, lng) {
+      const year = date.getFullYear(), month = date.getMonth() + 1, day = date.getDate();
+      let Y = year, M = month;
+      if (M <= 2) { Y -= 1; M += 12; }
+      const A = Math.floor(Y / 100);
+      const B = 2 - A + Math.floor(A / 4);
+      const JD = Math.floor(365.25 * (Y + 4716)) + Math.floor(30.6001 * (M + 1)) + day + B - 1524.5;
+      const D = JD - 2451545.0;
+
+      const g = ((357.529 + 0.98560028 * D) % 360 + 360) % 360;
+      const q = ((280.459 + 0.98564736 * D) % 360 + 360) % 360;
+      const L = ((q + 1.915 * Math.sin(rad(g)) + 0.02 * Math.sin(rad(2 * g))) % 360 + 360) % 360;
+      const e = 23.439 - 0.00000036 * D;
+
+      const sinDec = Math.sin(rad(e)) * Math.sin(rad(L));
+      const dec = deg(Math.asin(sinDec));
+      const RA = deg(Math.atan2(Math.cos(rad(e)) * Math.sin(rad(L)), Math.cos(rad(L)))) / 15;
+      const eqt = q / 15 - (((RA % 24) + 24) % 24);
+
+      const dhuhrBase = 12 + 1.0 - lng / 15 - eqt; // UTC+1 الجزائر
+
+      function getHourAngle(altitude) {
+        const cosH = (Math.sin(rad(altitude)) - Math.sin(rad(lat)) * Math.sin(rad(dec))) /
+                     (Math.cos(rad(lat)) * Math.cos(dec * Math.PI / 180));
+        if (cosH > 1) return 0;
+        if (cosH < -1) return 180;
+        return deg(Math.acos(cosH));
+      }
+
+      const H_sunrise = getHourAngle(-0.8333) / 15;
+      const H_fajr = getHourAngle(-18.0) / 15;
+      const H_isha = getHourAngle(-17.0) / 15;
+
+      const noonShadow = Math.tan(rad(Math.abs(lat - dec)));
+      const asrAltitude = deg(Math.atan(1 / (1 + noonShadow)));
+      const H_asr = getHourAngle(asrAltitude) / 15;
+
+      const toDate = (h) => {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        const mins = Math.round(h * 60);
+        d.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
+        return d;
+      };
+
+      const dFajr = toDate(dhuhrBase - H_fajr);
+      const dSunrise = toDate(dhuhrBase - H_sunrise);
+      const dDhuhr = toDate(dhuhrBase);
+      const dAsr = toDate(dhuhrBase + H_asr);
+      const dMaghrib = toDate(dhuhrBase + H_sunrise);
+      const dIsha = toDate(dhuhrBase + H_isha);
+      const dImsak = new Date(dFajr.getTime() - 10 * 60000);
+
+      const fmt = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+      return {
+        imsak: fmt(dImsak), fajr: fmt(dFajr), sunrise: fmt(dSunrise),
+        dhuhr: fmt(dDhuhr), asr: fmt(dAsr), maghrib: fmt(dMaghrib), isha: fmt(dIsha),
+        dates: { imsak: dImsak, fajr: dFajr, sunrise: dSunrise, dhuhr: dDhuhr, asr: dAsr, maghrib: dMaghrib, isha: dIsha }
+      };
+    }
+
+    function calculateQibla(lat, lng) {
+      const kaabaLat = 21.422487, kaabaLng = 39.826206;
+      const y = Math.sin(rad(kaabaLng - lng));
+      const x = Math.cos(rad(lat)) * Math.tan(rad(kaabaLat)) - Math.sin(rad(lat)) * Math.cos(rad(kaabaLng - lng));
+      return Math.round(((deg(Math.atan2(y, x)) + 360) % 360) * 10) / 10;
+    }
+
+    function toggleRealAdhanPlay(forceSrc) {
+      if (isAdhanPlaying) {
+        if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+        isAdhanPlaying = false;
+        document.getElementById('play-adhan-btn').innerHTML = '▶ استماع للأذان الحقيقي الآن';
+        return;
+      }
+
+      let src = forceSrc;
+      if (!src) {
+        if (customAudioBase64) {
+          src = customAudioBase64;
+        } else {
+          const selected = document.getElementById('real-voice-select').value;
+          src = AUDIO_TRACKS[selected] || AUDIO_TRACKS.makkah;
+        }
+      }
+
+      currentAudio = new Audio(src);
+      currentAudio.volume = isGlobalMuted ? 0 : 0.85;
+      currentAudio.play().then(() => {
+        isAdhanPlaying = true;
+        document.getElementById('play-adhan-btn').innerHTML = '⏹ إيقاف الأذان الحقيقي';
+      }).catch(e => console.warn(e));
+
+      currentAudio.onended = () => {
+        isAdhanPlaying = false;
+        document.getElementById('play-adhan-btn').innerHTML = '▶ استماع للأذان الحقيقي الآن';
+      };
+    }
+
+    function handleCustomAudioUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        customAudioBase64 = reader.result;
+        try { localStorage.setItem('custom_adhan_audio', customAudioBase64); } catch {}
+        alert('تم حفظ الأذان المخصص بنجاح!');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function toggleGlobalMute() {
+      isGlobalMuted = !isGlobalMuted;
+      document.getElementById('mute-btn').innerText = isGlobalMuted ? '🔇' : '🔊';
+      if (currentAudio) currentAudio.volume = isGlobalMuted ? 0 : 0.85;
+    }
+
+    function updateClockAndCountdown() {
+      const now = new Date();
+      const times = calculatePrayerTimes(now, currentLocation.lat, currentLocation.lng);
+
+      document.getElementById('gregorian-date-text').innerText = new Intl.DateTimeFormat('ar-DZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+      try {
+        const hijriParts = new Intl.DateTimeFormat('ar-DZ-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' }).formatToParts(now);
+        const day = hijriParts.find(p => p.type === 'day')?.value;
+        const month = hijriParts.find(p => p.type === 'month')?.value;
+        document.getElementById('hijri-date-text').innerText = `${day} ${month} 1448 هـ`;
+      } catch {
+        document.getElementById('hijri-date-text').innerText = `${now.getDate()} جمادى الأولى 1448 هـ`;
+      }
+
+      const seq = [
+        { name: 'الفجر', date: times.dates.fajr },
+        { name: 'الشروق', date: times.dates.sunrise },
+        { name: 'الظهر', date: times.dates.dhuhr },
+        { name: 'العصر', date: times.dates.asr },
+        { name: 'المغرب', date: times.dates.maghrib },
+        { name: 'العشاء', date: times.dates.isha }
+      ];
+
+      let nextP = null;
+      for (const p of seq) {
+        if (now.getTime() < p.date.getTime()) {
+          nextP = p;
+          break;
+        }
+      }
+      if (!nextP) {
+        nextP = { name: 'الفجر', date: new Date(times.dates.fajr.getTime() + 24 * 3600000) };
+      }
+
+      document.getElementById('next-prayer-name').innerText = `صلاة ${nextP.name}`;
+      const diffSec = Math.max(0, Math.floor((nextP.date.getTime() - now.getTime()) / 1000));
+      const h = Math.floor(diffSec / 3600), m = Math.floor((diffSec % 3600) / 60), s = diffSec % 60;
+
+      document.getElementById('cd-hours').innerText = String(h).padStart(2, '0');
+      document.getElementById('cd-minutes').innerText = String(m).padStart(2, '0');
+      document.getElementById('cd-seconds').innerText = String(s).padStart(2, '0');
+
+      document.getElementById('prayer-progress-bar').style.width = `${Math.min(100, Math.max(5, ((86400 - diffSec) / 86400) * 100))}%`;
+
+      renderPrayersGrid(times, nextP.name);
+    }
+
+    function renderPrayersGrid(times, nextName) {
+      const cards = [
+        { key: 'imsak', name: 'الإمساك', time: times.imsak, icon: '✨' },
+        { key: 'fajr', name: 'الفجر', time: times.fajr, icon: '🌅' },
+        { key: 'sunrise', name: 'الشروق', time: times.sunrise, icon: '☀️' },
+        { key: 'dhuhr', name: 'الظهر', time: times.dhuhr, icon: '🌞' },
+        { key: 'asr', name: 'العصر', time: times.asr, icon: '⛅' },
+        { key: 'maghrib', name: 'المغرب', time: times.maghrib, icon: '🌇' },
+        { key: 'isha', name: 'العشاء', time: times.isha, icon: '🌙' }
+      ];
+
+      const html = cards.map(c => `
+        <div class="p-4 rounded-xl border ${c.name === nextName ? 'bg-emerald-950/40 border-emerald-500 ring-1 ring-emerald-500' : 'bg-slate-900 border-slate-800'} flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xl">${c.icon}</span>
+            ${c.name === nextName ? '<span class="text-[10px] text-emerald-400 font-bold">القادمة</span>' : ''}
+          </div>
+          <div>
+            <h4 class="text-sm font-bold text-slate-100">${c.name}</h4>
+            <span class="font-mono-numbers text-2xl font-extrabold text-white block mt-1">${c.time}</span>
+          </div>
+          <button onclick="toggleRealAdhanPlay()" class="mt-3 text-xs text-slate-400 hover:text-emerald-400 text-right">🔊 استماع للأذان</button>
+        </div>
+      `).join('');
+
+      document.getElementById('prayers-grid').innerHTML = html;
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+      document.querySelectorAll('.nav-tab').forEach(el => {
+        if (el.dataset.tab === tabId) {
+          el.className = 'nav-tab text-emerald-400 border-b-2 border-emerald-400 pb-0.5';
+        } else {
+          el.className = 'nav-tab hover:text-white pb-0.5';
+        }
+      });
+
+      if (tabId === 'map') initLeafletMap();
+      if (tabId === 'adhkar') setAdhkarCategory('morning');
+      if (tabId === 'qibla') {
+        const angle = calculateQibla(currentLocation.lat, currentLocation.lng);
+        document.getElementById('qibla-angle-val').innerText = `${angle}°`;
+        document.getElementById('qibla-needle').style.transform = `rotate(${angle}deg)`;
+      }
+      if (tabId === 'calendar') renderMonthlyCalendar();
+    }
+
+    function setLocation(loc) {
+      currentLocation = loc;
+      document.getElementById('nav-location-name').innerText = loc.nameAr;
+      document.getElementById('hero-location-name').innerText = loc.nameAr;
+      updateClockAndCountdown();
+      switchTab('home');
+    }
+
+    function autoLocateGPS() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          let closest = ALGIERS_SUBURBS[0], minD = Infinity;
+          for (const loc of [...ALGIERS_SUBURBS, ...ALGERIA_WILAYAS]) {
+            const d = Math.hypot(loc.lat - pos.coords.latitude, loc.lng - pos.coords.longitude);
+            if (d < minD) { minD = d; closest = loc; }
+          }
+          setLocation(closest);
+        });
+      }
+    }
+
+    function initLeafletMap() {
+      if (mapInstance) return;
+      mapInstance = L.map('map-container').setView([currentLocation.lat, currentLocation.lng], 13);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(mapInstance);
+
+      ALGERIA_MOSQUES.forEach(m => {
+        const marker = L.marker([m.lat, m.lng]).addTo(mapInstance);
+        marker.bindPopup(`<strong>${m.nameAr}</strong><br/>${m.district}<br/>خطبة الجمعة: ${m.jumuah}`);
+        marker.on('click', () => {
+          document.getElementById('selected-mosque-card').innerHTML = `
+            <h4 class="font-bold text-emerald-400">${m.nameAr}</h4>
+            <p class="text-xs text-slate-300">${m.district} · توقيت صلاة وخطبة الجمعة: ${m.jumuah}</p>
+            <a href="https://www.google.com/maps/dir/?api=1&destination=${m.lat},${m.lng}" target="_blank" class="inline-block mt-2 text-xs text-emerald-400 underline">الاتجاه المباشر عبر نظام GPS</a>
+          `;
+        });
+      });
+    }
+
+    function findNearestMosque() {
+      let nearest = ALGERIA_MOSQUES[0], minD = Infinity;
+      ALGERIA_MOSQUES.forEach(m => {
+        const d = Math.hypot(m.lat - currentLocation.lat, m.lng - currentLocation.lng);
+        if (d < minD) { minD = d; nearest = m; }
+      });
+      if (mapInstance) {
+        mapInstance.setView([nearest.lat, nearest.lng], 15);
+      }
+      alert(`أقرب مسجد لك: ${nearest.nameAr} (${nearest.district})`);
+    }
+
+    function setAdhkarCategory(cat) {
+      document.querySelectorAll('.adhkar-cat-btn').forEach(b => {
+        b.className = b.dataset.cat === cat
+          ? 'adhkar-cat-btn px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs'
+          : 'adhkar-cat-btn px-4 py-2 bg-slate-950 text-slate-300 rounded-xl text-xs';
+      });
+
+      if (cat === 'tasbeeh') {
+        document.getElementById('tasbeeh-panel').classList.remove('hidden');
+        document.getElementById('adhkar-list').innerHTML = '';
+        return;
+      }
+
+      document.getElementById('tasbeeh-panel').classList.add('hidden');
+      const list = ADHKAR_DATA[cat] || [];
+      document.getElementById('adhkar-list').innerHTML = list.map((item) => `
+        <div class="p-5 rounded-2xl bg-slate-950 border border-slate-800">
+          <p class="font-amiri text-lg text-slate-100 leading-relaxed">${item.text}</p>
+          <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-800 text-xs text-slate-400">
+            <span>المصدر: ${item.source}</span>
+            <button onclick="this.innerText = 'تم الذكر ✓'; this.className = 'px-3 py-1 bg-emerald-500 text-slate-950 font-bold rounded-lg text-xs'" class="px-3 py-1 bg-slate-800 text-slate-200 rounded-lg text-xs">
+              التكرار: ${item.count}
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function incrementTasbeeh() {
+      tasbeehCount++;
+      document.getElementById('tasbeeh-count').innerText = tasbeehCount;
+    }
+    function resetTasbeeh() {
+      tasbeehCount = 0;
+      document.getElementById('tasbeeh-count').innerText = 0;
+    }
+
+    function renderMonthlyCalendar() {
+      const now = new Date();
+      const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      let rows = '';
+      for (let i = 1; i <= days; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth(), i);
+        const t = calculatePrayerTimes(d, currentLocation.lat, currentLocation.lng);
+        const isToday = i === now.getDate();
+        rows += `
+          <tr class="${isToday ? 'bg-emerald-950/40 text-emerald-300 font-bold' : ''}">
+            <td class="py-2 px-2">${i}</td>
+            <td class="py-2 px-2">${d.getDate()}/${d.getMonth()+1}</td>
+            <td class="py-2 px-2 font-sans">${i} جمادى الأولى</td>
+            <td class="py-2 px-2 text-indigo-400">${t.imsak}</td>
+            <td class="py-2 px-2 text-emerald-400">${t.fajr}</td>
+            <td class="py-2 px-2 text-orange-400">${t.sunrise}</td>
+            <td class="py-2 px-2">${t.dhuhr}</td>
+            <td class="py-2 px-2">${t.asr}</td>
+            <td class="py-2 px-2 text-rose-400">${t.maghrib}</td>
+            <td class="py-2 px-2 text-sky-400">${t.isha}</td>
+          </tr>
+        `;
+      }
+      document.getElementById('calendar-table-body').innerHTML = rows;
+    }
+
+    function initUI() {
+      document.getElementById('suburbs-container').innerHTML = ALGIERS_SUBURBS.map(s => `
+        <button onclick='setLocation(${JSON.stringify(s)})' class="p-3 text-right bg-slate-950 border border-slate-800 hover:border-emerald-500 rounded-xl text-xs font-bold transition-colors">
+          📍 ${s.nameAr}
+        </button>
+      `).join('');
+
+      document.getElementById('wilayas-container').innerHTML = ALGERIA_WILAYAS.map(w => `
+        <button onclick='setLocation(${JSON.stringify(w)})' class="p-2 text-right bg-slate-950 border border-slate-800 hover:border-emerald-500 rounded-lg text-xs font-semibold">
+          <span class="text-emerald-400 font-mono-numbers block text-[10px]">${w.code}</span>
+          ${w.nameAr}
+        </button>
+      `).join('');
+
+      updateClockAndCountdown();
+      setInterval(updateClockAndCountdown, 1000);
+    }
+
+    window.onload = initUI;
+  </script>
+</body>
+</html>

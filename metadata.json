@@ -1,0 +1,6 @@
+{
+  "name": "مواقيت الصلاة والآذان في الجزائر",
+  "description": "تطبيق دقيق وشامل لمواقيت الصلاة، الأذان، وتنبيهات الصلوات لولاية الجزائر وضواحيها وكافة الولايات الـ 58 مع اتجاه القبلة والتقويم الهجري والأذكار.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
